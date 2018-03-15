@@ -146,8 +146,33 @@ md$stage[is.na(md$stage)] <- "Unavailable"
 #--- Gene matrix preprocess ----- #
 source("https://bioconductor.org/biocLite.R")
 library(Biobase)
-gendat <- inner_join(genmeta, gentcga, by = "Hugo_Symbol");rm(genmeta, gentcga)
+#grap gene names
+gene_names_tcga <- gentcga %>% select(Hugo_Symbol) 
+gene_names_meta <- genmeta %>% select(Hugo_Symbol) 
+#get sample names
+sample_names_tcga <- colnames(gentcga)[-(1:2)] 
+sample_names_meta <- colnames(genmeta)[-(1:2)] 
+#Center and scale 
+preProcgm <-  caret::preProcess(t(gentcga[,-(1:2)]), method = c("center", "scale")) 
+tcgaES <- predict(preProcgm, t(gentcga[,-(1:2)]))
+glimpse(tcgaES)
+tcgaES <- t(tcgaES)
+colnames(tcgaES) <- sample_names_tcga
+gentcga <- cbind(gene_names_tcga, tcgaES)
+rm(tcgaES)
+######
+preProcgm <-  caret::preProcess(t(genmeta[,-(1:2)]), method = c("center", "scale")) 
+metaES <- predict(preProcgm, t(genmeta[,-(1:2)]))
+metaES <- t(metaES)
+colnames(metaES) <- sample_names_meta
+genmeta <- cbind(gene_names_meta, metaES)
+rm(metaES, preProcgm)
+###
+gendat <- inner_join(gentcga, genmeta, by ="Hugo_Symbol")
+rm(g)
+gendat <- inner_join(genmeta, gentcga, by = "Hugo_Symbol");rm(genmeta, gentcga, gene_names_meta, gene_names_tcga)
 glimpse(gendat)
+gendat <- gentcga
 gene_names <- gendat %>% select(Hugo_Symbol)  #grap gene names
 gendat <- gendat %>% select(intersect(colnames(gendat), md$patient_id))# get intersection btw clinical and gene values
 sample_names <- colnames(gendat) # get sample names
@@ -169,29 +194,3 @@ brcaMSN <- MSnbase::impute(brcaMSN, method = "knn")
 Biobase::exprs(brcaES) <- MSnbase::exprs(brcaMSN)
 rm(brcaMSN)
 sum(is.na(Biobase::exprs(brcaES)))
-
-##Perform empirical Bayes to find differential gene expressions
-library(limma)
-fit <- limma::eBayes(limma::lmFit(brcaES))
-volcanoplot(fit)
-# toptable(fit)
-# # 
-rm(fit)
-#Center and scale 
-preProcgm <-  caret::preProcess(t(exprs(brcaES)), method = c("center", "scale")) 
-brcaES <- predict(preProcgm, t(exprs(brcaES))) 
-rm(preProcgm)
-
-# # ### x is the input data. This function replaces the top 'perc' percent
-# # ### with the value 'rp'. 
-# # 
-# subset.top = function(x, perc, eset)
-# {
-#   qnt = quantile(x$lods,1-perc)
-#   w = which(fit$lods >= qnt)
-#   return(eset[w])
-# }
-# brcaES = subset.top(x = fit, perc = .2 , eset = brcaES)
-# volcanoplot(fit)
-# fit_gene_names = rownames(brcaEStest)
-# rm(f
