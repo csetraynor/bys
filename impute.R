@@ -1,60 +1,57 @@
+# !diagnostics off
 #Imputation#
+library(mice)
 md %>%
   VIM::aggr(prop = FALSE, combined = TRUE, numbers = TRUE, sortVars = TRUE, sortCombs = TRUE)
-md$dfs_months <- as.numeric(md$dfs_months)
-md$ajcc_pathologic_tumor_stage <- as.factor(md$ajcc_pathologic_tumor_stage)
-
-
-VIM::marginplot(md[c("ajcc_pathologic_tumor_stage","dfs_months")])
-table(md$ajcc_pathologic_tumor_stage, useNA = "always")
-#Following NPI and AJCC guidelines
-md$stage <- NA
-md$stage[grepl("I$|IA$|IB$",md$ajcc_pathologic_tumor_stage )] <- "1"
-md$stage[grepl("II$|IIA$|IIB$",md$ajcc_pathologic_tumor_stage )] <- "2"
-md$stage[grepl("IIIA$|IIIA$|IIIC$",md$ajcc_pathologic_tumor_stage )] <- "3"
-md$stage[grepl("IV$|X$",md$ajcc_pathologic_tumor_stage )] <- "4"
-md$stage[is.na(md$stage)] <- NA
 #using imputation by Bayesian poly regression
+md$stage[md$stage == "Unavailable"] <- NA
 tmp <- as.factor(md$stage)
 tmp <- mice::mice.impute.polyreg(y = tmp,
                                  ry = !is.na(tmp),
-                                 x = model.matrix(~ ajcc_nodes_pathologic_pn  + dfs_status + cancer_type_detailed +dfs_months,
+                                 x = model.matrix(~ pr + er +her2 ,
                                                   data = md)[,-1],
                                  wy = array(TRUE, dim = length(tmp)))
 md$stage[is.na(md$stage)] <- tmp[is.na(md$stage)]
 remove(tmp)
 
-md$nodes <- NA
-md$nodes[grepl("0",md$ajcc_nodes_pathologic_pn)] <- "1"
-md$nodes[grepl("1",md$ajcc_nodes_pathologic_pn)] <- "2"
-md$nodes[grepl("2|3|X",md$ajcc_nodes_pathologic_pn)] <- "3"
-
-#--- Impute er_status and pr_status
-md$erandpr <- "Negative"
-md$erandpr[md$er_status_by_ihc == "Positive" & md$pr_status_by_ihc == "Positive"] <- "Positive"
-md$erandpr[is.na(md$er_status_by_ihc) | md$pr_status_by_ihc == "Indeterminate"] <- NA
-
-
-tmp <- as.factor(md$erandpr)
-VIM::marginplot(md[c("erandpr","dfs_months")])
+#using imputation by Bayesian poly regression
+md$pr[md$pr == "Unavailable"] <- NA
+tmp <- as.factor(md$pr)
 tmp <- mice::mice.impute.polyreg(y = tmp,
                                  ry = !is.na(tmp),
-                                 x = model.matrix(~dfs_status+
-                                                    cancer_type_detailed + dfs_months ,
+                                 x = model.matrix(~ stage + er + her2 ,
                                                   data = md)[,-1],
                                  wy = array(TRUE, dim = length(tmp)))
-md$erandpr[is.na(md$erandpr)] <- tmp[is.na(md$erandpr)]
+md$pr[is.na(md$pr)] <- tmp[is.na(md$pr)]
 remove(tmp)
 
-#--- HER2 score
-md$ihc_her2[is.na(md$ihc_her2) | md$ihc_her2 == "Equivocal" | md$ihc_her2 == "Indeterminate" ] <- NA
-tmp <- as.factor(md$ihc_her2)
-
+#using imputation by Bayesian poly regression
+md$er[md$er == "Unavailable"] <- NA
+tmp <- as.factor(md$er)
 tmp <- mice::mice.impute.polyreg(y = tmp,
                                  ry = !is.na(tmp),
-                                 x = model.matrix(~dfs_status+
-                                                    cancer_type_detailed + dfs_months ,
+                                 x = model.matrix(~ pr + stage +her2 ,
                                                   data = md)[,-1],
                                  wy = array(TRUE, dim = length(tmp)))
-md$ihc_her2[is.na(md$ihc_her2)] <- tmp[is.na(md$ihc_her2)]
+md$er[is.na(md$er)] <- tmp[is.na(md$er)]
+remove(tmp)
+#using imputation by Bayesian poly regression
+md$her2[md$her2 == "Unavailable"] <- NA
+tmp <- as.factor(md$her2)
+tmp <- mice::mice.impute.polyreg(y = tmp,
+                                 ry = !is.na(tmp),
+                                 x = model.matrix(~ pr + er + stage ,
+                                                  data = md)[,-1],
+                                 wy = array(TRUE, dim = length(tmp)))
+md$her2[is.na(md$her2)] <- tmp[is.na(md$her2)]
+remove(tmp)
+#using imputation by Bayesian poly regression
+md$menopause[md$menopause == 4] <- NA
+tmp <- as.factor(md$menopause)
+tmp <- mice::mice.impute.polyreg(y = tmp,
+                                 ry = !is.na(tmp),
+                                 x = model.matrix(~ pr + er + stage + her2 ,
+                                                  data = md)[,-1],
+                                 wy = array(TRUE, dim = length(tmp)))
+md$menopause[is.na(md$menopause)] <- tmp[is.na(md$menopause)]
 remove(tmp)
